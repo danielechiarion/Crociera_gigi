@@ -1,0 +1,10 @@
+{
+  "TEMPO_RILEVAZIONE": 5,
+  "N_DECIMALI": 2,
+  "TEMPO_INVIO": 2,
+  "IP_SERVER": "0.0.0.0",
+  "PORTA_SERVER": 6767,
+  "TOPIC": "v1/devices/me/telemetry",
+  "BROKER": "localhost",
+  "PORTA_BROKER": 1883
+}

@@ -4,7 +4,6 @@ import time
 import sys
 import threading
 import paho.mqtt.client as mqtt
-import cripto
 
 # =========================
 # CARICAMENTO CONFIGURAZIONE
@@ -53,6 +52,8 @@ def gestisci_client(conn, addr):
     start_time = time.time()
 
     identita_client = None
+    cabina_client = None
+    ponte_client = None
     mqtt_client = None
 
     while True:
@@ -61,17 +62,19 @@ def gestisci_client(conn, addr):
             data = conn.recv(1024)
 
             if not data:
-                print(f"[Thread] Client {addr} disconnesso.")
+                print("Gateway IoT in attesa di dati")
                 break
 
             dato = json.loads(data.decode())
 
-            print(f"[Thread {addr}] Dato ricevuto:", dato)
+            print("Gateway IoT in ricezione e invio")
 
             # Inizializzazione MQTT al primo dato ricevuto
             if identita_client is None:
 
                 identita_client = dato.get("identita")
+                cabina_client = dato.get("cabina")
+                ponte_client = dato.get("ponte")
 
                 if identita_client not in tokens:
                     print(f"[Thread {addr}] ERRORE: nessun token trovato per {identita_client}")
@@ -111,6 +114,8 @@ def gestisci_client(conn, addr):
                 invio_numero += 1
 
                 dato_iot = {
+                    "cabina": cabina_client,
+                    "ponte": ponte_client,
                     "temperaturam": media_t,
                     "umiditam": media_u,
                     "dataeora": int(time.time()),
@@ -120,12 +125,9 @@ def gestisci_client(conn, addr):
 
                 dato_json = json.dumps(dato_iot)
 
-                # Cifratura mantenuta per eventuali utilizzi futuri
-                dato_cripto = cripto.criptazione(dato_json)
-
                 mqtt_client.publish(TOPIC, dato_json)
 
-                print(f"[Thread {addr}] Inviato a ThingsBoard ({identita_client}):", dato_iot)
+                print(f"Inviato a ThingsBoard ({identita_client}):", dato_iot)
 
                 temperature = []
                 umidita = []

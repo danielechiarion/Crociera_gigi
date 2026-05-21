@@ -116,8 +116,8 @@ def gestisci_client(conn, addr):
                 dato_iot = {
                     "cabina": cabina_client,
                     "ponte": ponte_client,
-                    "temperaturam": media_t,
-                    "umiditam": media_u,
+                    "temperature": media_t,
+                    "humidity": media_u,
                     "dataeora": int(time.time()),
                     "invionumero": invio_numero,
                     "identita": identita_client

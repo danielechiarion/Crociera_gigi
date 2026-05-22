@@ -5,6 +5,6 @@
   "IP_SERVER": "0.0.0.0",
   "PORTA_SERVER": 6767,
   "TOPIC": "v1/devices/me/telemetry",
-  "BROKER": "localhost",
+  "BROKER": "127.0.0.1",
   "PORTA_BROKER": 1883
 }

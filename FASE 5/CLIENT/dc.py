@@ -1,124 +1,76 @@
-import socket      # libreria per creare socket tcp/ip
-import json        # libreria per lavorare con file json
-import time        # libreria gestione tempo
-import random      # libreria numeri casuali
-import os          # libreria gestione file/cartelle
-import sys         # libreria gestione sistema
-                    # sys.argv: lista argomenti passati da riga di comando
-                    # sys.argv[0] = nome script
-                    # sys.argv[1] = primo argomento (identità cabina)
+import socket
+import json
+import time
+import dht
+import machine
+from misurazione import lettura_sensore
 
-# =========================
-# LETTURA IDENTITÀ DA RIGA DI COMANDO
-# =========================
-# Ogni cabina si distingue dall'identità passata come argomento:
-#   python dc.py DC-001
-#   python dc.py DC-002
-#   python dc.py DC-003
-# Lo script è uno solo; cambia solo il parametro di lancio.
+# scelta identità
+IDENTITA = input("Inserisci identità (es. DC-001): ").strip()
 
-if len(sys.argv) < 2:
-    print("Uso: python dc.py <identita>")
-    print("Esempio: python dc.py DC-001")
-    sys.exit()
-
-# variabile IDENTITA
-# identificativo univoco di questa istanza (es. "DC-001")
-# tipo: stringa
-IDENTITA = sys.argv[1]
-
-# =========================
-# CARICAMENTO CONFIGURAZIONE
-# =========================
-# Un solo file da.json contiene i parametri di tutte le cabine.
-# La chiave di accesso è l'identità passata da riga di comando.
-
-CONFIG_FILE = "Configurazione/da.json"
-
-if not os.path.exists(CONFIG_FILE):
-    print(f"ERRORE: file {CONFIG_FILE} non trovato.")
-    sys.exit()
-
+# caricamento parametri cabina
 try:
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-        config = json.load(f)
+    with open("Configurazione/da.json", "r") as f:
+        da = json.load(f)
 except Exception as e:
     print("ERRORE lettura da.json:", e)
-    sys.exit()
+    raise SystemExit
 
-# controllo che l'identità richiesta esista nel file
-if IDENTITA not in config:
-    print(f"ERRORE: identità '{IDENTITA}' non trovata in {CONFIG_FILE}")
-    print("Identità disponibili:", list(config.keys()))
-    sys.exit()
+if IDENTITA not in da:
+    print(f"ERRORE: '{IDENTITA}' non trovata in da.json")
+    print("Identità disponibili:", list(da.keys()))
+    raise SystemExit
 
-# variabile parametri
-# contiene i parametri specifici di questa cabina
-# tipo: dizionario
-parametri = config[IDENTITA]
-
-try:
-    IP     = parametri["IP"]
-    PORTA  = parametri["porta"]
-    CABINA = parametri["cabina"]
-    PONTE  = parametri["ponte"]
-except KeyError as e:
-    print(f"ERRORE: chiave mancante in da.json per {IDENTITA}:", e)
-    sys.exit()
+parametri = da[IDENTITA]
+IP     = parametri["IP"]
+PORTA  = parametri["porta"]
+CABINA = parametri["cabina"]
+PONTE  = parametri["ponte"]
 
 print(f"Dispositivo: {IDENTITA} | Cabina {CABINA} | Ponte {PONTE}")
 
-# =========================
-# CREAZIONE SOCKET
-# =========================
+# inizializzazione sensore
+sensor = dht.DHT11(machine.Pin(28))
 
+# connesione al gateway
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 try:
     s.connect((IP, PORTA))
 except Exception as e:
     print("ERRORE connessione al gateway:", e)
-    sys.exit()
+    raise SystemExit
 
 print(f"Connesso al Gateway IoT ({IP}:{PORTA})")
 
-# =========================
-# LOOP INVIO DATI
-# =========================
-
+# invio dati
 while True:
 
     try:
+        temperatura, umidita = lettura_sensore(sensor)
+        temperatura = round(temperatura, 2)
+        umidita     = round(umidita, 2)
 
-        temperatura = round(random.uniform(18.0, 22.0), 2)
-        umidita     = round(random.uniform(60.0, 70.0), 2)
-
-        # variabile dato
-        # il campo "identita" è fondamentale:
-        # il gateway lo usa per scegliere il token MQTT corretto
-        # e scrivere sui dispositivo ThingsBoard della cabina giusta
         dato = {
-            "identita":   IDENTITA,
-            "cabina":     CABINA,
-            "ponte":      PONTE,
-            "temperatura": temperatura,
-            "umidita":    umidita
+            "identita":    IDENTITA,
+            "cabina":      CABINA,
+            "ponte":       PONTE,
+            "temperature": temperatura,
+            "humidity":    umidita
         }
 
         dato_json = json.dumps(dato)
-
         print(f"[{IDENTITA}] Dato inviato:", dato)
-
-        s.sendall(dato_json.encode("utf-8"))
+        s.sendall((dato_json + "\n").encode("utf-8"))
 
         time.sleep(2)
 
     except KeyboardInterrupt:
-        print(f"\n[{IDENTITA}] Chiusura client...")
+        print(f"\n[{IDENTITA}] Chiusura...")
         s.close()
         break
 
     except Exception as e:
-        print(f"[{IDENTITA}] ERRORE durante invio dati:", e)
+        print(f"[{IDENTITA}] ERRORE:", e)
         s.close()
         break

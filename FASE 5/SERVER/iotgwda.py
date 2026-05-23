@@ -56,17 +56,26 @@ def gestisci_client(conn, addr):
     ponte_client = None
     mqtt_client = None
 
-    while True:
+    buffer = ""
 
+    while True:
         try:
             data = conn.recv(1024)
 
             if not data:
-                print("Gateway IoT in attesa di dati")
+                print("Client disconnesso")
                 break
 
-            print(data.decode())
-            dato = json.loads(data.decode())
+            buffer += data.decode("utf-8")
+
+            #  Processa tutti i messaggi completi nel buffer
+            while "\n" in buffer:
+                linea, buffer = buffer.split("\n", 1)
+                linea = linea.strip()
+                if not linea:
+                    continue
+
+                dato = json.loads(linea)
 
             print("Gateway IoT in ricezione e invio")
 
@@ -97,8 +106,8 @@ def gestisci_client(conn, addr):
                     break
 
             # Accumulo dati
-            temperature.append(dato["temperatura"])
-            umidita.append(dato["umidita"])
+            temperature.append(dato["temperature"])
+            umidita.append(dato["humidity"])
 
             # Invio media ogni TEMPO_RILEVAZIONE secondi
             if time.time() - start_time >= TEMPO_RILEVAZIONE:
@@ -177,7 +186,7 @@ except Exception as e:
     sys.exit()
 
 s.listen(10)
-s.settimeout(1) # set timeout to receive CTRL+C command
+s.settimeout(1.0) # timeout per consentire di interrompere lo script 
 
 print(f"Gateway IoT in attesa di connessioni su porta {PORTA_SERVER}...")
 
@@ -185,25 +194,27 @@ print(f"Gateway IoT in attesa di connessioni su porta {PORTA_SERVER}...")
 # LOOP PRINCIPALE
 # =========================
 
-try:
-    while True:
+while True:
 
-        try:
-            conn, addr = s.accept()
+    try:
+        conn, addr = s.accept()
 
-            print(f"Nuova connessione da: {addr}")
+        print(f"Nuova connessione da: {addr}")
 
-            t = threading.Thread(
-                target=gestisci_client,
-                args=(conn, addr),
-                daemon=True
-            )
+        t = threading.Thread(
+            target=gestisci_client,
+            args=(conn, addr),
+            daemon=True
+        )
 
-            t.start()
+        t.start()
 
-        except Exception as e:
+    except KeyboardInterrupt:
 
-            print("Errore accettazione connessione:", e)
-except KeyboardInterrupt:
-    print("\nGateway interrotto dall'utente.")
-    s.close()
+        print("\nGateway interrotto dall'utente.")
+        s.close()
+        break
+
+    except Exception as e:
+
+        print("Errore accettazione connessione:", e)

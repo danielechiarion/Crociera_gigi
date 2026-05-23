@@ -56,26 +56,17 @@ def gestisci_client(conn, addr):
     ponte_client = None
     mqtt_client = None
 
-    buffer = ""
-
     while True:
+
         try:
             data = conn.recv(1024)
 
             if not data:
-                print("Client disconnesso")
+                print("Gateway IoT in attesa di dati")
                 break
 
-            buffer += data.decode("utf-8")
-
-            #  Processa tutti i messaggi completi nel buffer
-            while "\n" in buffer:
-                linea, buffer = buffer.split("\n", 1)
-                linea = linea.strip()
-                if not linea:
-                    continue
-
-                dato = json.loads(linea)
+            print(data.decode())
+            dato = json.loads(data.decode())
 
             print("Gateway IoT in ricezione e invio")
 
@@ -97,6 +88,7 @@ def gestisci_client(conn, addr):
                 try:
                     mqtt_client.username_pw_set(token)
                     mqtt_client.connect(BROKER, PORTA_BROKER)
+                    mqtt_client.loop_start()
 
                     print(f"[Thread {addr}] MQTT connesso per dispositivo {identita_client}")
 
@@ -105,8 +97,8 @@ def gestisci_client(conn, addr):
                     break
 
             # Accumulo dati
-            temperature.append(dato["temperature"])
-            umidita.append(dato["humidity"])
+            temperature.append(dato["temperatura"])
+            umidita.append(dato["umidita"])
 
             # Invio media ogni TEMPO_RILEVAZIONE secondi
             if time.time() - start_time >= TEMPO_RILEVAZIONE:
@@ -151,6 +143,7 @@ def gestisci_client(conn, addr):
     conn.close()
 
     if mqtt_client:
+        mqtt_client.loop_stop()
         mqtt_client.disconnect()
 
     print(f"[Thread {addr}] Thread terminato per {identita_client}.")
@@ -184,6 +177,7 @@ except Exception as e:
     sys.exit()
 
 s.listen(10)
+s.settimeout(1) # set timeout to receive CTRL+C command
 
 print(f"Gateway IoT in attesa di connessioni su porta {PORTA_SERVER}...")
 
@@ -191,27 +185,25 @@ print(f"Gateway IoT in attesa di connessioni su porta {PORTA_SERVER}...")
 # LOOP PRINCIPALE
 # =========================
 
-while True:
+try:
+    while True:
 
-    try:
-        conn, addr = s.accept()
+        try:
+            conn, addr = s.accept()
 
-        print(f"Nuova connessione da: {addr}")
+            print(f"Nuova connessione da: {addr}")
 
-        t = threading.Thread(
-            target=gestisci_client,
-            args=(conn, addr),
-            daemon=True
-        )
+            t = threading.Thread(
+                target=gestisci_client,
+                args=(conn, addr),
+                daemon=True
+            )
 
-        t.start()
+            t.start()
 
-    except KeyboardInterrupt:
+        except Exception as e:
 
-        print("\nGateway interrotto dall'utente.")
-        s.close()
-        break
-
-    except Exception as e:
-
-        print("Errore accettazione connessione:", e)
+            print("Errore accettazione connessione:", e)
+except KeyboardInterrupt:
+    print("\nGateway interrotto dall'utente.")
+    s.close()
